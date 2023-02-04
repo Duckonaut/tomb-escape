@@ -1,0 +1,23 @@
+[package]
+name = "gba-tomb-escape"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+agb = "0.13.0"
+
+[build-dependencies]
+quote = "1.0.10"
+tiled = { version = "0.10.2", default-features = false }
+
+[profile.dev]
+opt-level = 2
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+debug = true

@@ -1,0 +1,7 @@
+version = "1.0"
+
+transparent_colour = "00ff00"
+
+[image.background]
+filename = "tileset.png"
+tile_size = "8x8"
