@@ -38,6 +38,9 @@ const COFFIN: &Graphics = include_aseprite!("gfx/coffin.aseprite");
 const PLAYER_RUN: &Tag = SPRITES.tags().get("run");
 const PLAYER_IDLE: &Tag = SPRITES.tags().get("idle");
 
+const CLOCK_ROTATE: &Tag = SPRITES.tags().get("clock_rotate");
+const CLOCK_DISAPPEAR: &Tag = SPRITES.tags().get("clock_disappear");
+
 const COFFIN_OPEN: &Tag = COFFIN.tags().get("open");
 
 const TIMER: &Tag = UI_CARDS.tags().get("timer");

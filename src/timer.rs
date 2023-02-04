@@ -49,12 +49,16 @@ impl<'o> Timer<'o> {
         self.time -= 1;
         let seconds = self.time / 60;
         let seconds_ones = seconds % 10;
-        let seconds_tens = (seconds / 10) % 60;
+        let seconds_tens = ((seconds % 60) / 10) % 60;
         let minutes = seconds / 60;
 
         self.digits[0].set_sprite(self.object_controller.sprite(DIGITS.sprite(minutes)));
         self.digits[1].set_sprite(self.object_controller.sprite(DIGITS.sprite(seconds_tens)));
         self.digits[2].set_sprite(self.object_controller.sprite(DIGITS.sprite(seconds_ones)));
+    }
+
+    pub fn add_time(&mut self, time: usize) {
+        self.time += time;
     }
 
     pub fn reset(&mut self) {

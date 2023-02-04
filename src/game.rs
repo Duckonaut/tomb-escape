@@ -1,6 +1,11 @@
 use agb::display::{object::Object, tiled::VRamManager};
+use alloc::vec::Vec;
 
-use crate::{entity::Player, timer::Timer, world::World};
+use crate::{
+    entity::{Clock, Player, ClockState},
+    timer::Timer,
+    world::World,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameState {
@@ -25,6 +30,7 @@ pub struct Game<'o, 't> {
     pub object_controller: &'o agb::display::object::ObjectController,
     pub world: World<'t>,
     pub player: Player<'o>,
+    pub clocks: Vec<Clock<'o>>,
     pub timer: Timer<'o>,
     pub state: GameState,
 }
@@ -37,10 +43,16 @@ impl<'o, 't> Game<'o, 't> {
         let mut player = Player::new(object_controller);
         player.entity.object.hide();
         let timer = Timer::new(object_controller);
+        let mut clocks = Vec::new();
+
+        let clock = Clock::new(object_controller, (64, 104).into());
+        clocks.push(clock);
+
         Self {
             object_controller,
             world,
             player,
+            clocks,
             timer,
             state: GameState::Start,
         }
@@ -59,9 +71,13 @@ impl<'o, 't> Game<'o, 't> {
                 self.transition_to_state(GameState::Playing);
             }
             GameState::Playing => {
-                self.player.update(&self.world, input);
+                self.player.update(&self.world, &mut self.clocks, &mut self.timer, input);
                 self.timer.update();
                 self.world.update();
+                for clock in self.clocks.iter_mut() {
+                    clock.update(&self.world);
+                }
+                self.clocks.retain(|clock| clock.state != ClockState::Destroy);
             }
             GameState::GameOver => {
                 self.state = GameState::Start;

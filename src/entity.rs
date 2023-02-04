@@ -3,7 +3,7 @@ use agb::{
     fixnum::{num, Rect, Vector2D},
 };
 
-use crate::{world::World, Number};
+use crate::{world::World, Number, timer::Timer};
 
 extern crate alloc;
 
@@ -91,6 +91,7 @@ impl<'o> Entity<'o> {
                 self.velocity.x = 0.into();
             }
         }
+        self.position.x -= world.scroll_velocity();
 
         self.position - initial_position
     }
@@ -195,14 +196,41 @@ impl<'o> Player<'o> {
         }
     }
 
-    pub fn update(&mut self, world: &World, input: &agb::input::ButtonController) {
+    pub fn update(
+        &mut self,
+        world: &World,
+        clocks: &mut [Clock],
+        timer: &mut Timer,
+        input: &agb::input::ButtonController,
+    ) {
+        self.movement(world, input);
+
+        self.update_animation();
+        self.entity.update(world);
+
+        for clock in clocks {
+            if clock.state == ClockState::Active &&
+                clock.entity.collider().touches(self.entity.collider()) {
+                clock.disappear();
+                timer.add_time(clock.time);
+            }
+        }
+
+        if self.entity.position.x < num!(0.) {
+            self.entity.position.x = num!(0.);
+        }
+    }
+
+    fn movement(&mut self, world: &World, input: &agb::input::ButtonController) {
         if input.is_pressed(agb::input::Button::LEFT) {
             self.entity.velocity.x -= num!(0.125);
         }
         if input.is_pressed(agb::input::Button::RIGHT) {
             self.entity.velocity.x += num!(0.125);
         }
-        if input.is_just_pressed(agb::input::Button::A) && self.ground_state == GroundState::Grounded {
+        if input.is_just_pressed(agb::input::Button::A)
+            && self.ground_state == GroundState::Grounded
+        {
             self.entity.velocity.y = num!(-4.);
         }
         if self.entity.velocity.x > num!(2.) {
@@ -218,11 +246,10 @@ impl<'o> Player<'o> {
             self.entity.velocity.x = num!(0.);
         }
 
-        if self.entity.collision_in_direction(
-            (0, 1).into(),
-            num!(1.),
-            |v| world.collides(v),
-        ).1
+        if self
+            .entity
+            .collision_in_direction((0, 1).into(), num!(1.), |v| world.collides(v))
+            .1
         {
             self.ground_state = GroundState::Grounded;
         } else {
@@ -231,9 +258,6 @@ impl<'o> Player<'o> {
 
         if self.ground_state == GroundState::Airborne {
             self.entity.velocity.y += num!(0.25);
-        }
-        else {
-            self.entity.position.x -= num!(0.25);
         }
 
         if self.entity.velocity.y > num!(4.) {
@@ -244,10 +268,6 @@ impl<'o> Player<'o> {
             self.entity.position = (num!(0.), num!(0.)).into();
             self.entity.velocity = (num!(0.), num!(0.)).into();
         }
-
-
-        self.update_animation();
-        self.entity.update(world);
     }
 
     pub fn update_animation(&mut self) {
@@ -280,5 +300,56 @@ impl<'o> Player<'o> {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ClockState {
+    Active,
+    Disappearing,
+    Destroy,
+}
+
+pub struct Clock<'o> {
+    pub entity: Entity<'o>,
+    pub state: ClockState,
+    pub time: usize,
+}
+
+impl<'o> Clock<'o> {
+    pub fn new(
+        object_controller: &'o agb::display::object::ObjectController,
+        position: Vector2D<Number>,
+    ) -> Self {
+        let mut entity = Entity::new(
+            object_controller,
+            Rect::new((num!(8.), num!(8.)).into(), (num!(16.), num!(16.)).into()),
+            super::CLOCK_ROTATE,
+            8,
+        );
+
+        entity.position = position;
+
+        Self {
+            entity,
+            state: ClockState::Active,
+            time: 60 * 20,
+        }
+    }
+
+    pub fn update(&mut self, world: &World) {
+        self.entity.update(world);
+        if self.state == ClockState::Disappearing
+            && self.entity.animation.sprites().len() == self.entity.frame
+        {
+            self.entity.object.hide();
+            self.state = ClockState::Destroy;
+        }
+    }
+
+    pub fn disappear(&mut self) {
+        self.state = ClockState::Disappearing;
+        self.entity.set_animation(super::CLOCK_DISAPPEAR);
+        self.entity.animation_speed = 6;
     }
 }

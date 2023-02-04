@@ -93,7 +93,7 @@ impl<'t> World<'t> {
         );
         let section_number = (x / 64) as usize;
 
-        if !(0..tilemap::HEIGHT).contains(&y) {
+        if !(0..tilemap::HEIGHT).contains(&y) || adjusted_for_scroll.x < num!(0.) {
             return None;
         }
         let position = tilemap::WIDTH as usize * y as usize + (x % tilemap::WIDTH) as usize;
@@ -109,7 +109,7 @@ impl<'t> World<'t> {
     }
 
     pub fn update(&mut self) {
-        self.scroll += num!(0.25);
+        self.scroll += self.scroll_velocity();
     }
 
     pub fn clear(&mut self, vram: &mut VRamManager) {
@@ -133,6 +133,10 @@ impl<'t> World<'t> {
 
         self.background.commit(vram);
         self.sections.commit(vram);
+    }
+
+    pub fn scroll_velocity(&self) -> Number {
+        num!(0.25) + self.scroll.sqrt() / num!(100.)
     }
 }
 
