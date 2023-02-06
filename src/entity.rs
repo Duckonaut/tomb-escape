@@ -3,7 +3,7 @@ use agb::{
     fixnum::{num, Rect, Vector2D},
 };
 
-use crate::{world::World, Number, timer::Timer};
+use crate::{timer::Timer, world::World, Number};
 
 extern crate alloc;
 
@@ -168,6 +168,9 @@ impl<'o> Entity<'o> {
 pub enum Animation {
     Idle,
     Run,
+    JumpUp,
+    JumpMid,
+    JumpFall,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -190,7 +193,7 @@ impl<'o> Player<'o> {
             entity: Entity::new(
                 object_controller,
                 Rect::new((num!(8.), num!(9.)).into(), (num!(10.), num!(14.)).into()),
-                super::PLAYER_IDLE,
+                crate::gfx::PLAYER_IDLE,
                 8,
             ),
         }
@@ -209,8 +212,9 @@ impl<'o> Player<'o> {
         self.entity.update(world);
 
         for clock in clocks {
-            if clock.state == ClockState::Active &&
-                clock.entity.collider().touches(self.entity.collider()) {
+            if clock.state == ClockState::Active
+                && clock.entity.collider().touches(self.entity.collider())
+            {
                 clock.disappear();
                 timer.add_time(clock.time);
             }
@@ -272,7 +276,19 @@ impl<'o> Player<'o> {
 
     pub fn update_animation(&mut self) {
         let old_animation = self.animation;
-        if self.entity.velocity.x.abs() > num!(0.1) {
+        if self.ground_state == GroundState::Airborne {
+            match self.entity.velocity.y {
+                y if y < num!(2.) => {
+                    self.animation = Animation::JumpUp;
+                }
+                y if y > num!(2.) => {
+                    self.animation = Animation::JumpFall;
+                }
+                _ => {
+                    self.animation = Animation::JumpMid;
+                }
+            }
+        } else if self.entity.velocity.x.abs() > num!(0.1) {
             self.animation = Animation::Run;
         } else {
             self.animation = Animation::Idle;
@@ -291,12 +307,24 @@ impl<'o> Player<'o> {
         if old_animation != self.animation {
             match self.animation {
                 Animation::Idle => {
-                    self.entity.set_animation(super::PLAYER_IDLE);
+                    self.entity.set_animation(crate::gfx::PLAYER_IDLE);
                     self.entity.animation_speed = 8;
                 }
                 Animation::Run => {
-                    self.entity.set_animation(super::PLAYER_RUN);
+                    self.entity.set_animation(crate::gfx::PLAYER_RUN);
                     self.entity.animation_speed = 5;
+                }
+                Animation::JumpUp => {
+                    self.entity.set_animation(crate::gfx::PLAYER_JUMP_UP);
+                    self.entity.animation_speed = 8;
+                }
+                Animation::JumpMid => {
+                    self.entity.set_animation(crate::gfx::PLAYER_JUMP_MID);
+                    self.entity.animation_speed = 8;
+                }
+                Animation::JumpFall => {
+                    self.entity.set_animation(crate::gfx::PLAYER_JUMP_FALL);
+                    self.entity.animation_speed = 8;
                 }
             }
         }
@@ -305,12 +333,14 @@ impl<'o> Player<'o> {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClockState {
+    Incoming,
     Active,
     Disappearing,
     Destroy,
 }
 
 pub struct Clock<'o> {
+    pub position: Vector2D<Number>,
     pub entity: Entity<'o>,
     pub state: ClockState,
     pub time: usize,
@@ -324,21 +354,37 @@ impl<'o> Clock<'o> {
         let mut entity = Entity::new(
             object_controller,
             Rect::new((num!(8.), num!(8.)).into(), (num!(16.), num!(16.)).into()),
-            super::CLOCK_ROTATE,
+            crate::gfx::CLOCK_ROTATE,
             8,
         );
+        entity.object.hide();
 
         entity.position = position;
 
         Self {
+            position,
             entity,
-            state: ClockState::Active,
+            state: ClockState::Incoming,
             time: 60 * 20,
         }
     }
 
     pub fn update(&mut self, world: &World) {
+        let screen_x = self.position.x - world.scroll;
+        if screen_x < num!(-16.) {
+            self.state = ClockState::Destroy;
+        }
+
+        if screen_x > num!(240.) && self.state != ClockState::Incoming {
+            self.entity.object.hide();
+            self.state = ClockState::Incoming;
+        } else if screen_x < num!(240.) && self.state == ClockState::Incoming {
+            self.state = ClockState::Active;
+            self.entity.object.show();
+        }
+
         self.entity.update(world);
+
         if self.state == ClockState::Disappearing
             && self.entity.animation.sprites().len() == self.entity.frame
         {
@@ -349,7 +395,7 @@ impl<'o> Clock<'o> {
 
     pub fn disappear(&mut self) {
         self.state = ClockState::Disappearing;
-        self.entity.set_animation(super::CLOCK_DISAPPEAR);
+        self.entity.set_animation(crate::gfx::CLOCK_DISAPPEAR);
         self.entity.animation_speed = 6;
     }
 }

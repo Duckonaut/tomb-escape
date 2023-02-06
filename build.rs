@@ -50,13 +50,14 @@ fn main() {
     let background_layer = &map.get_layer(0).unwrap();
     let background_tiles = extract_tiles(background_layer);
 
-    let section_layer_range = 1..map.layers().len();
-    let section_tiles = section_layer_range
-        .map(|i| {
-            let layer = &map.get_layer(i).unwrap();
-            let tiles = extract_tiles(layer);
-            quote! { &[#(#tiles),*] }
-        });
+    let section_count = (map.layers().len() - 1) / 2;
+
+    let section_layer_range = 0..section_count;
+    let section_tiles = section_layer_range.map(|i| {
+        let layer = &map.get_layer(1 + (i * 2)).unwrap();
+        let tiles = extract_tiles(layer);
+        quote! { &[#(#tiles),*] }
+    });
 
     let mut tile_types = HashMap::new();
 
@@ -70,6 +71,13 @@ fn main() {
 
     let tile_types = (0..tileset.tilecount).map(|id| tile_types.get(&(id)).unwrap_or(&0));
 
+    let object_positions = (0..section_count).map(|i| {
+        let layer = &map.get_layer(2 + i * 2).unwrap();
+        let positions = extract_object_positions(layer);
+        let positions_tokens = positions.map(|(x, y)| quote! { (#x, #y) });
+        quote! { &[#(#positions_tokens),*] }
+    });
+
     let output = quote! {
         pub const SECTION_MAPS: &'static [&'static [u16]] = &[#(#section_tiles),*];
         pub const BACKGROUND_MAP: &[u16] = &[#(#background_tiles),*];
@@ -77,6 +85,7 @@ fn main() {
         pub const HEIGHT: i32 = #height as i32;
 
         pub const TILE_TYPES: &[u8] = &[#(#tile_types),*];
+        pub const CLOCK_POSITIONS: &'static [&'static [(i32, i32)]] = &[#(#object_positions),*];
     };
 
     let output_file = File::create(format!("{out_dir}/tilemap.rs"))
@@ -92,8 +101,7 @@ fn extract_tiles<'map>(layer: &'_ tiled::Layer<'map>) -> impl Iterator<Item = u1
             let width = tiles.width();
             let height = tiles.height();
             (0..width * height).map(move |i| {
-                let tile = tiles
-                    .get_tile((i % width) as i32, (i / width) as i32);
+                let tile = tiles.get_tile((i % width) as i32, (i / width) as i32);
 
                 tile.map_or(32, |tile| tile.id())
             })
@@ -101,6 +109,18 @@ fn extract_tiles<'map>(layer: &'_ tiled::Layer<'map>) -> impl Iterator<Item = u1
         _ => unimplemented!("cannot use infinite layer"),
     }
     .map(get_map_id)
+}
+
+fn extract_object_positions<'map>(
+    layer: &'_ tiled::Layer<'map>,
+) -> impl Iterator<Item = (i32, i32)> + 'map {
+    match layer.layer_type() {
+        tiled::LayerType::ObjectLayer(objects) => objects
+            .objects()
+            .map(|object| (object.x as i32, object.y as i32)),
+
+        _ => unimplemented!("cannot use infinite layer"),
+    }
 }
 
 fn get_map_id(tile_id: u32) -> u16 {

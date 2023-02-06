@@ -1,6 +1,6 @@
 use agb::display::object::Object;
 
-use crate::{TIMER, DIGITS};
+use crate::gfx::{DIGITS, TIMER};
 
 pub struct Timer<'o> {
     pub object_controller: &'o agb::display::object::ObjectController,
@@ -64,7 +64,18 @@ impl<'o> Timer<'o> {
     pub fn reset(&mut self) {
         self.time = 60 * 60;
     }
+
+    pub fn show(&mut self) {
+        self.timer_bg.show();
+        for digit in self.digits.iter_mut() {
+            digit.show();
+        }
+    }
+
+    pub fn hide(&mut self) {
+        self.timer_bg.hide();
+        for digit in self.digits.iter_mut() {
+            digit.hide();
+        }
+    }
 }
-
-
-

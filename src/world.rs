@@ -7,19 +7,22 @@ use agb::{
     },
     fixnum::{num, Rect, Vector2D},
 };
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc};
 
 use crate::{tilemap, Number};
 
 pub struct World<'t> {
-    background: InfiniteScrolledMap<'t>,
-    sections: InfiniteScrolledMap<'t>,
-    section_generator: Rc<SectionIndexGenerator>,
+    tiled: &'t Tiled0,
+    vram: &'t mut VRamManager,
+    tileset: Rc<&'t TileSet<'t>>,
+    pub background: InfiniteScrolledMap<'t>,
+    pub sections: Option<InfiniteScrolledMap<'t>>,
+    pub section_generator: Option<Rc<SectionIndexGenerator>>,
     pub scroll: Number,
 }
 
 impl<'t> World<'t> {
-    pub fn new(tileset: Rc<&'t TileSet<'t>>, tiled: &'t Tiled0, vram: &mut VRamManager) -> Self {
+    pub fn new(tileset: Rc<&'t TileSet<'t>>, tiled: &'t Tiled0, vram: &'t mut VRamManager) -> Self {
         let vblank = agb::interrupt::VBlank::get();
         let mut between_updates = || {
             vblank.wait_for_vblank();
@@ -28,6 +31,42 @@ impl<'t> World<'t> {
         let bg_tileset = tileset.clone();
         let mut background = InfiniteScrolledMap::new(
             tiled.background(Priority::P3, RegularBackgroundSize::Background64x32),
+            Box::new(move |_| {
+                (
+                    &bg_tileset,
+                    TileSetting::from_raw(
+                        33
+                    ),
+                )
+            }),
+        );
+
+        background.init(vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
+
+        background.show();
+
+        background.commit(vram);
+
+        Self {
+            tiled,
+            vram,
+            tileset,
+            background,
+            sections: None,
+            section_generator: None,
+            scroll: num!(0.),
+        }
+    }
+
+    pub fn start(&mut self) {
+        let vblank = agb::interrupt::VBlank::get();
+        let mut between_updates = || {
+            vblank.wait_for_vblank();
+        };
+
+        let bg_tileset = self.tileset.clone();
+        let mut background = InfiniteScrolledMap::new(
+            self.tiled.background(Priority::P3, RegularBackgroundSize::Background64x32),
             Box::new(move |pos| {
                 (
                     &bg_tileset,
@@ -40,11 +79,19 @@ impl<'t> World<'t> {
             }),
         );
 
-        let section_tileset = tileset.clone();
+        background.init(self.vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
+        background.show();
+        background.commit(self.vram);
+
+        self.background.clear(self.vram);
+        self.background = background;
+
+        let section_tileset = self.tileset.clone();
         let section_generator = Rc::new(SectionIndexGenerator::new(0));
         let for_sections = section_generator.clone();
         let mut sections = InfiniteScrolledMap::new(
-            tiled.background(Priority::P2, RegularBackgroundSize::Background64x32),
+            self.tiled
+                .background(Priority::P2, RegularBackgroundSize::Background64x32),
             Box::new(move |pos| {
                 let section_number = (pos.x / 64) as usize;
                 let section_index = for_sections.get_at(section_number);
@@ -62,26 +109,20 @@ impl<'t> World<'t> {
             }),
         );
 
-        background.init(vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
-        sections.init(vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
-
-        background.show();
+        sections.init(self.vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
         sections.show();
-        // foreground.show();
+        sections.commit(self.vram);
+        self.section_generator = Some(section_generator);
+        self.sections = Some(sections);
+    }
 
-        background.commit(vram);
-        sections.commit(vram);
-        // foreground.commit(vram);
-
-        Self {
-            background,
-            sections,
-            section_generator,
-            scroll: num!(0.),
-        }
+    pub fn stop(&mut self) {
+        self.sections = None;
+        self.section_generator = None;
     }
 
     pub fn collides(&self, v: Vector2D<Number>) -> Option<Rect<Number>> {
+        self.sections.as_ref()?;
         let factor: Number = Number::new(1) / Number::new(8);
         let adjusted_for_scroll = v + Vector2D {
             x: self.scroll,
@@ -97,8 +138,11 @@ impl<'t> World<'t> {
             return None;
         }
         let position = tilemap::WIDTH as usize * y as usize + (x % tilemap::WIDTH) as usize;
-        let tile_main_section =
-            tilemap::SECTION_MAPS[self.section_generator.get_at(section_number)][position];
+        let tile_main_section = tilemap::SECTION_MAPS[self
+            .section_generator
+            .as_ref()
+            .unwrap()
+            .get_at(section_number)][position];
         let tile_main_section_property = tilemap::TILE_TYPES[tile_main_section as usize];
 
         if tile_main_section_property == 1 {
@@ -112,27 +156,31 @@ impl<'t> World<'t> {
         self.scroll += self.scroll_velocity();
     }
 
-    pub fn clear(&mut self, vram: &mut VRamManager) {
-        self.background.clear(vram);
-        self.sections.clear(vram);
+    pub fn clear(&mut self) {
+        self.background.clear(self.vram);
+        if let Some(sections) = &mut self.sections {
+            sections.clear(self.vram);
+        }
     }
 
-    pub fn commit(&mut self, vram: &mut VRamManager) {
-        loop {
-            match self.sections.set_pos(
-                vram,
-                Vector2D {
-                    x: self.scroll.floor(),
-                    y: 0,
-                },
-            ) {
-                agb::display::tiled::PartialUpdateStatus::Done => break,
-                agb::display::tiled::PartialUpdateStatus::Continue => (),
+    pub fn commit(&mut self) {
+        if let Some(sections) = &mut self.sections {
+            loop {
+                match sections.set_pos(
+                    self.vram,
+                    Vector2D {
+                        x: self.scroll.floor(),
+                        y: 0,
+                    },
+                ) {
+                    agb::display::tiled::PartialUpdateStatus::Done => break,
+                    agb::display::tiled::PartialUpdateStatus::Continue => (),
+                }
             }
+            sections.commit(self.vram);
         }
 
-        self.background.commit(vram);
-        self.sections.commit(vram);
+        self.background.commit(self.vram);
     }
 
     pub fn scroll_velocity(&self) -> Number {
@@ -140,7 +188,7 @@ impl<'t> World<'t> {
     }
 }
 
-struct SectionIndexGenerator {
+pub struct SectionIndexGenerator {
     seed: usize,
 }
 
@@ -149,7 +197,7 @@ impl SectionIndexGenerator {
         Self { seed }
     }
 
-    fn get_at(&self, index: usize) -> usize {
+    pub fn get_at(&self, index: usize) -> usize {
         if index == 0 {
             return 0;
         }

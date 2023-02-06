@@ -7,20 +7,16 @@
 extern crate alloc;
 
 use agb::{
-    display::{
-        object::{Graphics, Tag},
-        tiled::{InfiniteScrolledMap, RegularBackgroundSize, TileFormat, TileSet, TileSetting},
-        Priority,
-    },
-    fixnum::{FixedNum, Vector2D},
-    include_aseprite,
+    display::tiled::{TileFormat, TileSet},
+    fixnum::FixedNum,
 };
-use alloc::{boxed::Box, vec, rc::Rc};
+use alloc::rc::Rc;
 use game::Game;
 use world::World;
 
 mod entity;
 mod game;
+mod gfx;
 mod timer;
 mod world;
 
@@ -29,26 +25,6 @@ mod tilemap {
 }
 
 agb::include_gfx!("gfx/tileset.toml");
-
-const SPRITES: &Graphics = include_aseprite!("gfx/sprites.aseprite");
-const UI_CARDS: &Graphics = include_aseprite!("gfx/ui_cards.aseprite");
-const FONT: &Graphics = include_aseprite!("gfx/font.aseprite");
-const COFFIN: &Graphics = include_aseprite!("gfx/coffin.aseprite");
-
-const PLAYER_RUN: &Tag = SPRITES.tags().get("run");
-const PLAYER_IDLE: &Tag = SPRITES.tags().get("idle");
-
-const CLOCK_ROTATE: &Tag = SPRITES.tags().get("clock_rotate");
-const CLOCK_DISAPPEAR: &Tag = SPRITES.tags().get("clock_disappear");
-
-const COFFIN_OPEN: &Tag = COFFIN.tags().get("open");
-
-const TIMER: &Tag = UI_CARDS.tags().get("timer");
-const TITLE: &Tag = UI_CARDS.tags().get("title");
-const GAME_OVER: &Tag = UI_CARDS.tags().get("game_over");
-const PRESS_A_TO_START: &Tag = UI_CARDS.tags().get("a_to_start");
-
-const DIGITS: &Tag = FONT.tags().get("digits");
 
 type Number = FixedNum<8>;
 
@@ -66,6 +42,7 @@ pub fn main(mut gba: agb::Gba) -> ! {
     let object_controller = gba.display.object.get();
 
     let mut game = Game::new(&object_controller, world);
+    game.transition_to_state(game::GameState::Start);
 
     let mut input = agb::input::ButtonController::new();
 
@@ -75,6 +52,6 @@ pub fn main(mut gba: agb::Gba) -> ! {
 
         vblank.wait_for_vblank();
         object_controller.commit();
-        game.commit(&mut vram);
+        game.commit();
     }
 }
