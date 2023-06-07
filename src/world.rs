@@ -1,7 +1,8 @@
 use agb::{
     display::{
         tiled::{
-            InfiniteScrolledMap, RegularBackgroundSize, TileSet, TileSetting, Tiled0, VRamManager,
+            InfiniteScrolledMap, RegularBackgroundSize, TileFormat, TileSet, TileSetting, Tiled0,
+            VRamManager,
         },
         Priority,
     },
@@ -11,8 +12,8 @@ use alloc::{boxed::Box, rc::Rc};
 
 use crate::{tilemap, Number};
 
-pub struct World<'t> {
-    tiled: &'t Tiled0,
+pub struct World<'gba, 't> {
+    tiled: &'t Tiled0<'gba>,
     vram: &'t mut VRamManager,
     tileset: Rc<&'t TileSet<'t>>,
     pub background: InfiniteScrolledMap<'t>,
@@ -21,8 +22,12 @@ pub struct World<'t> {
     pub scroll: Number,
 }
 
-impl<'t> World<'t> {
-    pub fn new(tileset: Rc<&'t TileSet<'t>>, tiled: &'t Tiled0, vram: &'t mut VRamManager) -> Self {
+impl<'gba, 't> World<'gba, 't> {
+    pub fn new(
+        tileset: Rc<&'t TileSet<'t>>,
+        tiled: &'t Tiled0<'gba>,
+        vram: &'t mut VRamManager,
+    ) -> Self {
         let vblank = agb::interrupt::VBlank::get();
         let mut between_updates = || {
             vblank.wait_for_vblank();
@@ -30,15 +35,12 @@ impl<'t> World<'t> {
 
         let bg_tileset = tileset.clone();
         let mut background = InfiniteScrolledMap::new(
-            tiled.background(Priority::P3, RegularBackgroundSize::Background64x32),
-            Box::new(move |_| {
-                (
-                    &bg_tileset,
-                    TileSetting::from_raw(
-                        33
-                    ),
-                )
-            }),
+            tiled.background(
+                Priority::P3,
+                RegularBackgroundSize::Background64x32,
+                TileFormat::FourBpp,
+            ),
+            Box::new(move |_| (&bg_tileset, TileSetting::from_raw(33))),
         );
 
         background.init(vram, Vector2D { x: 0, y: 0 }, &mut between_updates);
@@ -66,7 +68,11 @@ impl<'t> World<'t> {
 
         let bg_tileset = self.tileset.clone();
         let mut background = InfiniteScrolledMap::new(
-            self.tiled.background(Priority::P3, RegularBackgroundSize::Background64x32),
+            self.tiled.background(
+                Priority::P3,
+                RegularBackgroundSize::Background64x32,
+                TileFormat::FourBpp,
+            ),
             Box::new(move |pos| {
                 (
                     &bg_tileset,
@@ -90,8 +96,11 @@ impl<'t> World<'t> {
         let section_generator = Rc::new(SectionIndexGenerator::new(0));
         let for_sections = section_generator.clone();
         let mut sections = InfiniteScrolledMap::new(
-            self.tiled
-                .background(Priority::P2, RegularBackgroundSize::Background64x32),
+            self.tiled.background(
+                Priority::P2,
+                RegularBackgroundSize::Background64x32,
+                TileFormat::FourBpp,
+            ),
             Box::new(move |pos| {
                 let section_number = (pos.x / 64) as usize;
                 let section_index = for_sections.get_at(section_number);

@@ -2,8 +2,8 @@ use agb::display::object::Object;
 
 use crate::gfx::{DIGITS, TIMER};
 
-pub struct Timer<'o> {
-    pub object_controller: &'o agb::display::object::ObjectController,
+pub struct Timer<'gba, 'o> {
+    pub object_controller: &'o agb::display::object::OamManaged<'gba>,
     pub timer_bg: Object<'o>,
     pub digits: [Object<'o>; 3],
     pub time: usize,
@@ -11,8 +11,8 @@ pub struct Timer<'o> {
 
 const DIGIT_XS: [u16; 3] = [32, 42, 50];
 
-impl<'o> Timer<'o> {
-    pub fn new(object_controller: &'o agb::display::object::ObjectController) -> Self {
+impl<'gba, 'o> Timer<'gba, 'o> {
+    pub fn new(object_controller: &'o agb::display::object::OamManaged<'gba>) -> Self {
         let mut timer_bg = object_controller.object_sprite(TIMER.sprite(0));
         timer_bg.set_position((2, 2).into());
 

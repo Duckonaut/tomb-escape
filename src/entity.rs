@@ -13,8 +13,8 @@ pub enum Direction {
     Right,
 }
 
-pub struct Entity<'o> {
-    pub object_controller: &'o agb::display::object::ObjectController,
+pub struct Entity<'gba, 'o> {
+    pub object_controller: &'o agb::display::object::OamManaged<'gba>,
     pub position: Vector2D<Number>,
     pub velocity: Vector2D<Number>,
     pub object: Object<'o>,
@@ -26,9 +26,9 @@ pub struct Entity<'o> {
     pub collision_mask: Rect<Number>,
 }
 
-impl<'o> Entity<'o> {
+impl<'gba, 'o> Entity<'gba, 'o> {
     pub fn new(
-        object_controller: &'o agb::display::object::ObjectController,
+        object_controller: &'o agb::display::object::OamManaged<'gba>,
         collision_mask: Rect<Number>,
         animation: &'static Tag,
         animation_speed: usize,
@@ -179,14 +179,14 @@ pub enum GroundState {
     Airborne,
 }
 
-pub struct Player<'o> {
+pub struct Player<'gba, 'o> {
     animation: Animation,
     ground_state: GroundState,
-    pub entity: Entity<'o>,
+    pub entity: Entity<'gba, 'o>,
 }
 
-impl<'o> Player<'o> {
-    pub fn new(object_controller: &'o agb::display::object::ObjectController) -> Self {
+impl<'gba, 'o> Player<'gba, 'o> {
+    pub fn new(object_controller: &'o agb::display::object::OamManaged<'gba>) -> Self {
         Self {
             animation: Animation::Idle,
             ground_state: GroundState::Airborne,
@@ -339,16 +339,16 @@ pub enum ClockState {
     Destroy,
 }
 
-pub struct Clock<'o> {
+pub struct Clock<'gba, 'o> {
     pub position: Vector2D<Number>,
-    pub entity: Entity<'o>,
+    pub entity: Entity<'gba, 'o>,
     pub state: ClockState,
     pub time: usize,
 }
 
-impl<'o> Clock<'o> {
+impl<'gba, 'o> Clock<'gba, 'o> {
     pub fn new(
-        object_controller: &'o agb::display::object::ObjectController,
+        object_controller: &'o agb::display::object::OamManaged<'gba>,
         position: Vector2D<Number>,
     ) -> Self {
         let mut entity = Entity::new(

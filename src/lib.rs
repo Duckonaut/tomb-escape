@@ -24,7 +24,7 @@ mod tilemap {
     include!(concat!(env!("OUT_DIR"), "/tilemap.rs"));
 }
 
-agb::include_gfx!("gfx/tileset.toml");
+agb::include_background_gfx!(tileset, tiles => "gfx/tileset.png");
 
 type Number = FixedNum<8>;
 
@@ -34,12 +34,12 @@ pub fn main(mut gba: agb::Gba) -> ! {
     let (background, mut vram) = gba.display.video.tiled0();
 
     vram.set_background_palettes(tileset::PALETTES);
-    let tileset = TileSet::new(tileset::background.tiles, TileFormat::FourBpp);
+    let tileset = TileSet::new(tileset::tiles.tiles, TileFormat::FourBpp);
     let tileset = Rc::new(&tileset);
 
     let world = World::new(tileset, &background, &mut vram);
 
-    let object_controller = gba.display.object.get();
+    let object_controller = gba.display.object.get_managed();
 
     let mut game = Game::new(&object_controller, world);
     game.transition_to_state(game::GameState::Start);

@@ -1,11 +1,10 @@
-use agb::{display::object::Object, fixnum::Vector2D};
+use agb::display::object::Object;
 use alloc::vec::Vec;
 
 use crate::{
     entity::{Clock, ClockState, Player},
     timer::Timer,
     world::World,
-    Number,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,22 +15,22 @@ pub enum GameState {
     GameOver,
 }
 
-pub struct Game<'o, 't> {
-    pub object_controller: &'o agb::display::object::ObjectController,
-    pub world: World<'t>,
-    pub player: Player<'o>,
-    pub clocks: Vec<Clock<'o>>,
-    pub timer: Timer<'o>,
+pub struct Game<'gba, 'o, 't> {
+    pub object_controller: &'o agb::display::object::OamManaged<'gba>,
+    pub world: World<'gba, 't>,
+    pub player: Player<'gba, 'o>,
+    pub clocks: Vec<Clock<'gba, 'o>>,
+    pub timer: Timer<'gba, 'o>,
     pub state: GameState,
     pub title_cards: [Object<'o>; 2],
     pub press_start_card: Object<'o>,
     pub game_over_card: Object<'o>,
 }
 
-impl<'o, 't> Game<'o, 't> {
+impl<'gba, 'o, 't> Game<'gba, 'o, 't> {
     pub fn new(
-        object_controller: &'o agb::display::object::ObjectController,
-        world: World<'t>,
+        object_controller: &'o agb::display::object::OamManaged<'gba>,
+        world: World<'gba, 't>,
     ) -> Self {
         let mut player = Player::new(object_controller);
         player.entity.object.hide();
